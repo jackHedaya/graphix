@@ -1,11 +1,17 @@
-use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
-#[derive(Debug)]
+
+#[derive(Debug, Copy, Clone)]
 struct Point {
     x: f64,
     y: f64,
     z: f64,
+}
+
+impl Point {
+    fn new(x: f64, y: f64, z: f64) -> Point {
+        Point { x, y, z }
+    }
 }
 
 struct Sphere {
@@ -13,15 +19,71 @@ struct Sphere {
     r: f64,
 }
 
+struct Ray {
+    origin: Point,
+    dir_pt: Point,
+}
+
+impl Ray {
+    fn new(origin: Point, dir_pt: Point) -> Ray {
+        Ray { origin, dir_pt }
+    }
+
+    fn dir(&self) -> Point {
+        self.dir_pt.subtract(&self.origin)
+    }
+}
+
+impl Sphere {
+    fn get_point_of_intersection(&self, ray: &Ray) -> Option<Point> {
+        // The ray from the camera to the center of the self
+        let dir = ray.dir();
+        let hypDir = self.point.subtract(&ray.origin);
+        let hypSq = hypDir.dot_product(&hypDir);
+
+        let top = dir.dot_product(&hypDir);
+        let cosSq = (top * top) / (dir.dot_product(&dir) * hypSq);
+
+        let adjSq = cosSq * hypSq;
+        let oppSq = hypSq - adjSq;
+
+        let radSq = self.r * self.r;
+
+        // If the ray is not within the bounds of the self, there is no collision
+        if oppSq > radSq {
+            return None;
+        }
+
+        let normRayDir = dir.normalize();
+        let adj = f64::sqrt(adjSq);
+
+        let distInt = adj - f64::sqrt(radSq - oppSq);
+        // The point of intersection on the self
+        Some(ray.origin.add(&normRayDir.scalar_mult(distInt)))
+    }
+}
+
 fn main() {
+    let num_frames: f64 = 50.;
+    for i in 0..(num_frames as isize) {
+        let x = f64::sin((i as f64 / num_frames) * 2. * std::f64::consts::PI);
+        let y = f64::cos((i as f64 / num_frames) * 2. * std::f64::consts::PI);
+
+        let pt = Point {
+            x: 25000. * x,
+            y: 25000.,
+            z: 25000. * y,
+        };
+
+        capture(&pt, &format!("z_orbit/{}.ppm", i));
+    }
+}
+
+fn capture(light: &Point, file_name: &str) {
     let mut screen = [[[255u8; 3]; 640]; 480];
 
     let sph = Sphere {
-        point: Point {
-            x: 0.,
-            y: 0.,
-            z: 100.,
-        },
+        point: Point::new(0., 0., 10000.),
         r: 125.,
     };
 
@@ -30,26 +92,11 @@ fn main() {
             let normX = x as f64 - (screen[0].len() as f64 / 2.);
             let normY = (screen.len() as f64 / 2.) - y as f64;
 
-            let point = Point {
-                x: normX,
-                y: normY,
-                z: 0.,
-            };
-            let endPoint = Point {
-                x: normX,
-                y: normY,
-                z: 1.0,
-            };
+            let point = Point::new(normX, normY, 0.);
+            let endPoint = Point::new(normX, normY, 1.0);
+            let lightRay = Ray::new(point.clone(), endPoint.clone());
 
-            let light = get_reflection(
-                (&point, &endPoint),
-                &[Point {
-                    x: 50.,
-                    y: 50.,
-                    z: 50.,
-                }],
-                &sph,
-            );
+            let light = get_reflection(&lightRay, &[light], &sph);
             let cappedLight = light as u8;
 
             screen[y][x] = [cappedLight, cappedLight, cappedLight];
@@ -60,7 +107,7 @@ fn main() {
         .read(true)
         .write(true)
         .create(true)
-        .open("file.ppm")
+        .open(file_name)
         .expect("");
 
     file.write_all(b"P6 640 480 255\n").expect("");
@@ -72,33 +119,12 @@ fn main() {
     }
 }
 
-fn get_reflection(ray: (&Point, &Point), lightSources: &[Point], sphere: &Sphere) -> f64 {
-    // The directional ray sent from the camera
-    let rayDir = ray.1.subtract(&ray.0);
-    // The ray from the camera to the center of the sphere
-    let hypDir = sphere.point.subtract(ray.0);
-    let hypSq = hypDir.dot_product(&hypDir);
-
-    let top = rayDir.dot_product(&hypDir);
-    let cosSq = (top * top) / (rayDir.dot_product(&rayDir) * hypSq);
-
-    let adjSq = cosSq * hypSq;
-    let oppSq = hypSq - adjSq;
-
-    let radSq = sphere.r * sphere.r;
-
-    // If the ray is not within the bounds of the sphere, there is no collision and the object
-    // returns no light
-    if oppSq > radSq {
+fn get_reflection(ray: &Ray, lightSources: &[&Point], sphere: &Sphere) -> f64 {
+    let Some(ptInt) = sphere.get_point_of_intersection(&ray) else {
         return 0.;
-    }
+    };
 
-    let normRayDir = rayDir.normalize();
-    let adj = f64::sqrt(adjSq);
-
-    let distInt = adj - f64::sqrt(radSq - oppSq);
-    // The point of intersection on the sphere
-    let ptInt = ray.0.add(&normRayDir.scalar_mult(distInt));
+    let rayDir = ray.dir();
 
     // The direction from the center of the sphere to the point of intersection
     let sphNorm = ptInt.subtract(&sphere.point).normalize();
@@ -112,19 +138,28 @@ fn get_reflection(ray: (&Point, &Point), lightSources: &[Point], sphere: &Sphere
         let cosAng = lightDir.dot_product(&rayOfReflection)
             / (rayOfReflection.magnitude() * lightDir.magnitude());
 
+        if cosAng >= 0. {
+            return 25.;
+        }
+
+        let Some(lightPtOnSphere) =
+            sphere.get_point_of_intersection(&Ray::new((*source).clone(), ptInt.clone()))
+        else {
+            // Due to numerical instability.
+            continue;
+        };
+
+        if !lightPtOnSphere.approx(&ptInt) {
+            return 25.;
+        }
+
         // We might be getting light at the opposite end of the sphere... we need
         // to check the direction of the light ray with respect to the reflection ray
         // and determine they're pointing in the right direction
-        totalLight += cosAng * 255.;
+        totalLight += -cosAng * 200. + 55.;
     }
 
     totalLight
-}
-
-fn debug(point: &Point, msg: String) {
-    if point.x == 0. && point.y == 0.0 && point.z == 0. {
-        println!("{}", msg);
-    }
 }
 
 impl Point {
@@ -141,7 +176,7 @@ impl Point {
     }
 
     fn magnitude(&self) -> f64 {
-        let sqSum = self.dot_product(&self);
+        let sqSum = self.dot_product(self);
 
         f64::sqrt(sqSum)
     }
@@ -154,6 +189,14 @@ impl Point {
             y: self.y / mag,
             z: self.z / mag,
         }
+    }
+
+    fn approx(&self, other: &Point) -> bool {
+        let eps: f64 = 10e-6;
+
+        let is_approx = |val0, val1| f64::abs(val1 - val0) < eps;
+
+        is_approx(self.x, other.x) && is_approx(self.y, other.y) && is_approx(self.z, other.z)
     }
 
     fn add(&self, other: &Point) -> Point {
