@@ -10,7 +10,6 @@ const OUT_PATH: &str = "out";
 fn main() {
     fs::create_dir_all(OUT_PATH).expect("failed to initialize output directory");
 
-
     let num_frames: f64 = 50.;
     for i in 0..(num_frames as isize) {
         let x = f64::sin((i as f64 / num_frames) * 2. * std::f64::consts::PI);
@@ -75,7 +74,8 @@ fn get_reflection(ray: &Ray, light_sources: &[Vector], sphere: &Sphere) -> f64 {
     // The direction from the center of the sphere to the point of intersection
     let sph_norm = pt_int.subtract(&sphere.point).normalize();
 
-    let ray_of_reflection = ray_dir.subtract(&sph_norm.scalar_mult(ray_dir.dot_product(&sph_norm) * 2.));
+    let ray_of_reflection =
+        ray_dir.subtract(&sph_norm.scalar_mult(ray_dir.dot_product(&sph_norm) * 2.));
 
     let mut total_light = 0.;
     for source in light_sources {
