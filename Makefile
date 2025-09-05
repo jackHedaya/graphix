@@ -1,5 +1,5 @@
-japan:
-	cargo run && cd z_orbit && convert -delay 2 $(ls *.ppm | sort -n) japan.gif
+render:
+	cargo run && cd out && magick -delay 2 $$(ls *.ppm | sort -n) render.gif
 
 open:
-	open -a "Google Chrome.app" z_orbit/japan.gif
+	open -a "Google Chrome.app" out/render.gif
