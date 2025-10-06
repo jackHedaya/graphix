@@ -65,29 +65,26 @@ fn capture(light_sources: &[Vector], file_name: &str) {
 }
 
 fn get_reflection(ray: &Ray, light_sources: &[Vector], sphere: &Sphere) -> f64 {
+    // 1. Early return if the ray doesn't hit the sphere at all
     let Some(pt_int) = sphere.get_point_of_intersection(&ray) else {
         return 0.;
     };
 
+    // 2. Get the incident vector of the ray. Note that this is not normalized
     let ray_dir = ray.dir();
 
-    // The direction from the center of the sphere to the point of intersection
+    // 3. Get the direction vector from the center of the sphere to the point of intersection
     let sph_norm = pt_int.subtract(&sphere.point).normalize();
 
+    // 4. Compute the ray of reflection via formula 𝑟 = 𝑑 − 2(𝑑⋅𝑛)𝑛 where
+    // 𝑑 = is the incident ray, 𝑛 is the normal vector of the surface
     let ray_of_reflection =
         ray_dir.subtract(&sph_norm.scalar_mult(ray_dir.dot_product(&sph_norm) * 2.));
 
+    // 5. Accumulate the total light from multiples sources
     let mut total_light = 0.;
     for source in light_sources {
-        let light_dir = pt_int.subtract(source);
-
-        let cos_ang = light_dir.dot_product(&ray_of_reflection)
-            / (ray_of_reflection.magnitude() * light_dir.magnitude());
-
-        if cos_ang >= 0. {
-            continue;
-        }
-
+        // Make sure the light source is "visible" from the point of intersection
         let Some(light_pt_on_sphere) =
             sphere.get_point_of_intersection(&Ray::new((*source).clone(), pt_int.clone()))
         else {
@@ -99,9 +96,20 @@ fn get_reflection(ray: &Ray, light_sources: &[Vector], sphere: &Sphere) -> f64 {
             continue;
         }
 
-        // We might be getting light at the opposite end of the sphere... we need
-        // to check the direction of the light ray with respect to the reflection ray
-        // and determine they're pointing in the right direction
+        // The direction of the light source relative to the point of intersection
+        let light_dir = pt_int.subtract(source);
+
+        // An approximation of how close in direction the reflected ray and the light source are from
+        // the point of intersection
+        let cos_ang = light_dir.dot_product(&ray_of_reflection)
+            / (ray_of_reflection.magnitude() * light_dir.magnitude());
+
+        // If cos_ang is negative, the reflected ray is in the opposite direction of the light source
+        // direction vector
+        if cos_ang >= 0. {
+            continue;
+        }
+
         total_light += -cos_ang * 200. + 55.;
     }
 
