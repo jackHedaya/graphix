@@ -47,15 +47,15 @@ fn capture(light_sources: &[Vector], file_name: &str) {
             let end_point = Vector::new(norm_x, norm_y, 1.0);
             let light_ray = Ray::new(point.clone(), end_point.clone());
 
-            let closest_some = get_closest_sphere(&light_ray, &objects);
-            let Some(sph) = closest_some else {
-                screen[y][x] = [0, 0, 0];
-                continue;
-            };
+            let mut context = RayContext::new(light_ray);
 
-            let light = get_reflection(&light_ray, light_sources, &sph);
-            let capped_light = light as u8;
+            for sph in objects.iter() {
+                let reflection = get_reflection(&light_ray, light_sources, &sph);
 
+                context.reflection = Reflection::closer(context.reflection, reflection);
+            }
+
+            let capped_light = context.reflection.map(|r| r.light as u8).unwrap_or(0);
             screen[y][x] = [capped_light, capped_light, capped_light];
         }
     }
@@ -76,17 +76,18 @@ fn capture(light_sources: &[Vector], file_name: &str) {
     }
 }
 
-fn get_reflection(ray: &Ray, light_sources: &[Vector], sphere: &Sphere) -> f64 {
+fn get_reflection(ray: &Ray, light_sources: &[Vector], sphere: &Sphere) -> Option<Reflection> {
     // 1. Early return if the ray doesn't hit the sphere at all
     let Some(pt_int) = sphere.get_point_of_intersection(&ray) else {
-        return 0.;
+        return None;
     };
 
     // 2. Get the incident vector of the ray. Note that this is not normalized
     let ray_dir = ray.dir();
 
     // 3. Get the direction vector from the center of the sphere to the point of intersection
-    let sph_norm = pt_int.subtract(&sphere.point).normalize();
+    let sph_vec = pt_int.subtract(&sphere.point);
+    let sph_norm = sph_vec.normalize();
 
     // 4. Compute the ray of reflection via formula 𝑟 = 𝑑 − 2(𝑑⋅𝑛)𝑛 where
     // 𝑑 = is the incident ray, 𝑛 is the normal vector of the surface
@@ -113,7 +114,7 @@ fn get_reflection(ray: &Ray, light_sources: &[Vector], sphere: &Sphere) -> f64 {
 
         // An approximation of how close in direction the reflected ray and the light source are from
         // the point of intersection
-        let cos_ang = get_cos_angle_between_vectors(&light_dir, &ray_of_reflection);
+        let cos_ang = light_dir.cos_between(&ray_of_reflection);
 
         // If cos_ang is negative, the reflected ray is in the opposite direction of the light source
         // direction vector
@@ -124,33 +125,58 @@ fn get_reflection(ray: &Ray, light_sources: &[Vector], sphere: &Sphere) -> f64 {
         total_light += -cos_ang * 200. + 55.;
     }
 
-    total_light
+    Some(Reflection::new(pt_int, sph_vec.magnitude(), total_light))
 }
 
-fn get_cos_angle_between_vectors(vec1: &Vector, vec2: &Vector) -> f64 {
-    vec1.dot_product(&vec2) / (vec1.magnitude() * vec2.magnitude())
+
+struct RayContext {
+    ray: geometry::Ray,
+    // This will become a list when we support multiple bounces
+    reflection: Option<Reflection>,
 }
 
-fn get_closest_sphere<'s>(ray: &Ray, spheres: &'s [Sphere]) -> Option<&'s Sphere> {
-    let mut active_sph: Option<&Sphere> = None;
-    let mut active_min_dist = -100.;
-
-    for sph in spheres {
-        let Some(pt_int) = sph.get_point_of_intersection(ray) else {
-            continue;
-        };
-
-        // Filter out spheres pointing in the opposite direction of the ray
-        if get_cos_angle_between_vectors(&ray.dir(), &pt_int.subtract(&ray.origin)) < 0. {
-            continue;
+impl RayContext {
+    pub fn new(ray: Ray) -> RayContext {
+        RayContext {
+            ray,
+            reflection: None,
         }
+    }
+}
 
-        let dist = pt_int.subtract(&ray.origin).magnitude();
-        if dist < active_min_dist {
-            active_min_dist = dist;
-            active_sph = Some(sph);
+#[derive(Debug, Copy, Clone)]
+struct Reflection {
+    pt_inter: Vector,
+    dist_inter: f64,
+    light: f64,
+}
+
+impl Reflection {
+    pub fn new(pt_inter: Vector, dist_inter: f64, light: f64) -> Reflection {
+        Reflection {
+            pt_inter,
+            dist_inter,
+            light,
         }
     }
 
-    active_sph
+    pub fn closer(r1: Option<Reflection>, r2: Option<Reflection>) -> Option<Reflection> {
+        if r1.is_none() && r2.is_none() {
+            return None;
+        }
+
+        if r1.is_none() {
+            return r2;
+        }
+
+        if r2.is_none() {
+            return r1;
+        }
+
+        if r1.clone().unwrap().dist_inter < r2.clone().unwrap().dist_inter {
+            r1
+        } else {
+            r2
+        }
+    }
 }

@@ -61,8 +61,13 @@ impl Vector {
             z: self.z * scalar,
         }
     }
+
+    pub fn cos_between(&self, other: &Vector) -> f64 {
+        self.dot_product(&other) / (self.magnitude() * other.magnitude())
+    }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct Ray {
     pub origin: Vector,
     pub dir_pt: Vector,
