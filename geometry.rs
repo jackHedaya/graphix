@@ -78,13 +78,23 @@ impl Ray {
     }
 }
 
+pub trait Object {
+    fn get_point_of_intersection(&self, ray: &Ray) -> Option<Vector>;
+}
+
 pub struct Sphere {
   pub point: Vector,
   pub r: f64,
 }
 
 impl Sphere {
-    pub fn get_point_of_intersection(&self, ray: &Ray) -> Option<Vector> {
+    pub fn new(point: Vector, r: f64) -> Sphere {
+        Sphere { point, r }
+    }
+}
+
+impl Object for Sphere {
+    fn get_point_of_intersection(&self, ray: &Ray) -> Option<Vector> {
         // The ray from the camera to the center of the self
         let dir = ray.dir();
         let hyp_dir = self.point.subtract(&ray.origin);
