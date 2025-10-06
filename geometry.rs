@@ -64,8 +64,8 @@ impl Vector {
 }
 
 pub struct Ray {
-    origin: Vector,
-    dir_pt: Vector,
+    pub origin: Vector,
+    pub dir_pt: Vector,
 }
 
 impl Ray {
