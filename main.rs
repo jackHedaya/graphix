@@ -47,15 +47,15 @@ fn capture(light_sources: &[Vector], file_name: &str) {
             let end_point = Vector::new(norm_x, norm_y, 1.0);
             let light_ray = Ray::new(point.clone(), end_point.clone());
 
-            let mut context = RayContext::new(light_ray);
+            let mut closest_reflection: Option<Reflection> = None;
 
             for sph in objects.iter() {
                 let reflection = get_reflection(&light_ray, light_sources, &sph);
 
-                context.reflection = Reflection::closer(context.reflection, reflection);
+                closest_reflection = Reflection::closer(closest_reflection, reflection);
             }
 
-            let capped_light = context.reflection.map(|r| r.light as u8).unwrap_or(0);
+            let capped_light = closest_reflection.map(|r| r.light as u8).unwrap_or(0);
             screen[y][x] = [capped_light, capped_light, capped_light];
         }
     }
@@ -97,6 +97,13 @@ fn get_reflection(ray: &Ray, light_sources: &[Vector], sphere: &Sphere) -> Optio
     // 5. Accumulate the total light from multiples sources
     let mut total_light = 0.;
     for source in light_sources {
+        // The direction of the light source relative to the point of intersection
+        let light_dir = pt_int.subtract(source);
+
+        // An approximation of how close in direction the reflected ray and the light source are from
+        // the point of intersection
+        let cos_ang = light_dir.cos_between(&ray_of_reflection);
+
         // Make sure the light source is "visible" from the point of intersection
         let Some(light_pt_on_sphere) =
             sphere.get_point_of_intersection(&Ray::new((*source).clone(), pt_int.clone()))
@@ -109,13 +116,6 @@ fn get_reflection(ray: &Ray, light_sources: &[Vector], sphere: &Sphere) -> Optio
             continue;
         }
 
-        // The direction of the light source relative to the point of intersection
-        let light_dir = pt_int.subtract(source);
-
-        // An approximation of how close in direction the reflected ray and the light source are from
-        // the point of intersection
-        let cos_ang = light_dir.cos_between(&ray_of_reflection);
-
         // If cos_ang is negative, the reflected ray is in the opposite direction of the light source
         // direction vector
         if cos_ang >= 0. {
@@ -126,22 +126,6 @@ fn get_reflection(ray: &Ray, light_sources: &[Vector], sphere: &Sphere) -> Optio
     }
 
     Some(Reflection::new(pt_int, sph_vec.magnitude(), total_light))
-}
-
-
-struct RayContext {
-    ray: geometry::Ray,
-    // This will become a list when we support multiple bounces
-    reflection: Option<Reflection>,
-}
-
-impl RayContext {
-    pub fn new(ray: Ray) -> RayContext {
-        RayContext {
-            ray,
-            reflection: None,
-        }
-    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -160,23 +144,17 @@ impl Reflection {
         }
     }
 
-    pub fn closer(r1: Option<Reflection>, r2: Option<Reflection>) -> Option<Reflection> {
-        if r1.is_none() && r2.is_none() {
-            return None;
-        }
-
-        if r1.is_none() {
-            return r2;
-        }
-
-        if r2.is_none() {
-            return r1;
-        }
-
-        if r1.clone().unwrap().dist_inter < r2.clone().unwrap().dist_inter {
-            r1
-        } else {
-            r2
+    pub fn closer(refl1: Option<Reflection>, refl2: Option<Reflection>) -> Option<Reflection> {
+        match (refl1, refl2) {
+            (None, None) => None,
+            (None, Some(r)) | (Some(r), None) => Some(r),
+            (Some(r1), Some(r2)) => {
+                if r1.dist_inter < r2.dist_inter {
+                    Some(r1)
+                } else {
+                    Some(r2)
+                }
+            }
         }
     }
 }
