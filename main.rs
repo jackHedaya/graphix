@@ -46,15 +46,6 @@ fn capture(light_sources: &[Vector], file_name: &str) {
 
             let capped_light = get_reflected_right(&light_ray, &light_sources, &objects) as u8;
 
-            // let mut closest_reflection: Option<Reflection> = None;
-
-            // for sph in objects.iter() {
-            //     let reflection = get_reflection(&light_ray, light_sources, &sph);
-
-            //     closest_reflection = Reflection::closer(closest_reflection, reflection);
-            // }
-
-            // let capped_light = closest_reflection.map(|r| r.light as u8).unwrap_or(0);
             screen[y][x] = [capped_light, capped_light, capped_light];
         }
     }
