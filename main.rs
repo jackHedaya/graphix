@@ -113,10 +113,10 @@ fn get_reflection(
         let Some(light_pt_on_sphere) =
             obj.get_point_of_intersection(&Ray::new((*source).clone(), pt_int.clone()))
         else {
-            // Due to numerical instability.
             continue;
         };
 
+        // Due to numerical instability.
         if !light_pt_on_sphere.approx(&pt_int) {
             continue;
         }
