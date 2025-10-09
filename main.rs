@@ -27,9 +27,6 @@ fn main() {
 fn capture(light_sources: &[Vector], file_name: &str) {
     let mut screen = [[[255u8; 3]; 640]; 480];
 
-    // TODO(@jackHedaya): Figure out how we can generalize this list of Spheres to be a list
-    // of objects
-    // This will require changes to get_reflection
     let objects: Vec<Box<dyn Object>> = vec![
         Box::new(Sphere::new(Vector::new(0., 0., 10000.), 125.)),
         Box::new(Sphere::new(Vector::new(0., 100., 5000.), 100.)),
