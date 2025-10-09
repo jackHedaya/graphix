@@ -44,7 +44,7 @@ fn capture(light_sources: &[Vector], file_name: &str) {
             let end_point = Vector::new(norm_x, norm_y, 1.0);
             let light_ray = Ray::new(point.clone(), end_point.clone());
 
-            let capped_light = get_reflected_right(&light_ray, &light_sources, &objects) as u8;
+            let capped_light = get_reflected_light(&light_ray, &light_sources, &objects) as u8;
 
             screen[y][x] = [capped_light, capped_light, capped_light];
         }
@@ -66,11 +66,7 @@ fn capture(light_sources: &[Vector], file_name: &str) {
     }
 }
 
-fn get_reflected_right(
-    ray: &Ray,
-    light_sources: &[Vector],
-    objects: &Vec<Box<dyn Object>>,
-) -> f64 {
+fn get_reflected_light(ray: &Ray, light_sources: &[Vector], objects: &Vec<Box<dyn Object>>) -> f64 {
     let mut closest_reflection: Option<Reflection> = None;
 
     for obj in objects.iter() {
