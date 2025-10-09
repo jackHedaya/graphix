@@ -30,16 +30,13 @@ fn capture(light_sources: &[Vector], file_name: &str) {
     // TODO(@jackHedaya): Figure out how we can generalize this list of Spheres to be a list
     // of objects
     // This will require changes to get_reflection
-    let objects: Vec<Sphere> = vec![
-        Sphere::new(Vector::new(0., 0., 10000.), 125.),
-        Sphere::new(Vector::new(0., 100., 5000.), 100.),
+    let objects: Vec<Box<dyn Object>> = vec![
+        Box::new(Sphere::new(Vector::new(0., 0., 10000.), 125.)),
+        Box::new(Sphere::new(Vector::new(0., 100., 5000.), 100.)),
     ];
 
     for y in 0..screen.len() {
         for x in 0..screen[y].len() {
-            // TODO(@jackHedaya): This same computation is done in get_reflection. We should
-            // consider caching the result
-
             let norm_x = x as f64 - (screen[0].len() as f64 / 2.);
             let norm_y = (screen.len() as f64 / 2.) - y as f64;
 
@@ -47,15 +44,17 @@ fn capture(light_sources: &[Vector], file_name: &str) {
             let end_point = Vector::new(norm_x, norm_y, 1.0);
             let light_ray = Ray::new(point.clone(), end_point.clone());
 
-            let mut closest_reflection: Option<Reflection> = None;
+            let capped_light = get_reflection_light(&light_ray, &light_sources, &objects) as u8;
 
-            for sph in objects.iter() {
-                let reflection = get_reflection(&light_ray, light_sources, &sph);
+            // let mut closest_reflection: Option<Reflection> = None;
 
-                closest_reflection = Reflection::closer(closest_reflection, reflection);
-            }
+            // for sph in objects.iter() {
+            //     let reflection = get_reflection(&light_ray, light_sources, &sph);
 
-            let capped_light = closest_reflection.map(|r| r.light as u8).unwrap_or(0);
+            //     closest_reflection = Reflection::closer(closest_reflection, reflection);
+            // }
+
+            // let capped_light = closest_reflection.map(|r| r.light as u8).unwrap_or(0);
             screen[y][x] = [capped_light, capped_light, capped_light];
         }
     }
@@ -76,9 +75,29 @@ fn capture(light_sources: &[Vector], file_name: &str) {
     }
 }
 
-fn get_reflection(ray: &Ray, light_sources: &[Vector], sphere: &Sphere) -> Option<Reflection> {
+fn get_reflection_light(
+    ray: &Ray,
+    light_sources: &[Vector],
+    objects: &Vec<Box<dyn Object>>,
+) -> f64 {
+    let mut closest_reflection: Option<Reflection> = None;
+
+    for obj in objects.iter() {
+        let reflection = get_reflection(&ray, light_sources, &obj);
+
+        closest_reflection = Reflection::closer(closest_reflection, reflection);
+    }
+
+    closest_reflection.map(|r| r.light).unwrap_or(0.)
+}
+
+fn get_reflection(
+    ray: &Ray,
+    light_sources: &[Vector],
+    obj: &Box<dyn Object>,
+) -> Option<Reflection> {
     // 1. Early return if the ray doesn't hit the sphere at all
-    let Some(pt_int) = sphere.get_point_of_intersection(&ray) else {
+    let Some(pt_int) = obj.get_point_of_intersection(&ray) else {
         return None;
     };
 
@@ -86,13 +105,12 @@ fn get_reflection(ray: &Ray, light_sources: &[Vector], sphere: &Sphere) -> Optio
     let ray_dir = ray.dir();
 
     // 3. Get the direction vector from the center of the sphere to the point of intersection
-    let sph_vec = pt_int.subtract(&sphere.point);
-    let sph_norm = sph_vec.normalize();
+    let obj_norm = obj.get_normal_at_point(&pt_int);
 
     // 4. Compute the ray of reflection via formula 𝑟 = 𝑑 − 2(𝑑⋅𝑛)𝑛 where
     // 𝑑 = is the incident ray, 𝑛 is the normal vector of the surface
     let ray_of_reflection =
-        ray_dir.subtract(&sph_norm.scalar_mult(ray_dir.dot_product(&sph_norm) * 2.));
+        ray_dir.subtract(&obj_norm.scalar_mult(ray_dir.dot_product(&obj_norm) * 2.));
 
     // 5. Accumulate the total light from multiples sources
     let mut total_light = 0.;
@@ -106,7 +124,7 @@ fn get_reflection(ray: &Ray, light_sources: &[Vector], sphere: &Sphere) -> Optio
 
         // Make sure the light source is "visible" from the point of intersection
         let Some(light_pt_on_sphere) =
-            sphere.get_point_of_intersection(&Ray::new((*source).clone(), pt_int.clone()))
+            obj.get_point_of_intersection(&Ray::new((*source).clone(), pt_int.clone()))
         else {
             // Due to numerical instability.
             continue;
@@ -125,7 +143,10 @@ fn get_reflection(ray: &Ray, light_sources: &[Vector], sphere: &Sphere) -> Optio
         total_light += -cos_ang * 200. + 55.;
     }
 
-    Some(Reflection::new(pt_int, sph_vec.magnitude(), total_light))
+    // Compute the distance from the ray origin to the point of intersection
+    let dist_int = pt_int.subtract(&ray.origin).magnitude();
+
+    Some(Reflection::new(pt_int, dist_int, total_light))
 }
 
 #[derive(Debug, Copy, Clone)]

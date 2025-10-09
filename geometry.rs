@@ -85,6 +85,7 @@ impl Ray {
 
 pub trait Object {
     fn get_point_of_intersection(&self, ray: &Ray) -> Option<Vector>;
+    fn get_normal_at_point(&self, v: &Vector) -> Vector;
 }
 
 pub struct Sphere {
@@ -124,5 +125,9 @@ impl Object for Sphere {
         let dist_int = adj - f64::sqrt(rad_sq - opp_sq);
         // The point of intersection on the self
         Some(ray.origin.add(&norm_ray_dir.scalar_mult(dist_int)))
+    }
+
+    fn get_normal_at_point(&self, v: &Vector) -> Vector {
+        v.subtract(&self.point).normalize()
     }
 }
