@@ -1,8 +1,8 @@
 #[derive(Debug, Copy, Clone)]
 pub struct Vector {
-    x: f64,
-    y: f64,
-    z: f64,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
 }
 
 impl Vector {
@@ -86,11 +86,14 @@ impl Ray {
 pub trait Object {
     fn get_point_of_intersection(&self, ray: &Ray) -> Option<Vector>;
     fn get_normal_at_point(&self, v: &Vector) -> Vector;
+
+    fn get_position(&self) -> Vector;
+    fn set_position(&mut self, new: Vector);
 }
 
 pub struct Sphere {
-  pub point: Vector,
-  pub r: f64,
+    pub point: Vector,
+    pub r: f64,
 }
 
 impl Sphere {
@@ -129,5 +132,13 @@ impl Object for Sphere {
 
     fn get_normal_at_point(&self, v: &Vector) -> Vector {
         v.subtract(&self.point).normalize()
+    }
+
+    fn get_position(&self) -> Vector {
+        self.point
+    }
+
+    fn set_position(&mut self, new: Vector) {
+        self.point = new;
     }
 }
