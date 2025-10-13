@@ -107,20 +107,13 @@ impl Scene {
     }
 
     fn get_reflected_light(&self, ray: &Ray) -> f64 {
-        let Some(obj) = self.get_closest_object(ray) else {
-            return 0.;
-        };
-
-        let Some(reflection) = self.get_reflection(&ray, &obj) else {
-            return 0.;
-        };
-
-        return reflection;
+        self.get_closest_object(ray)
+            .and_then(|obj| self.get_reflection(&ray, &obj))
+            .unwrap_or(0.)
     }
 
     fn get_closest_object(&self, ray: &Ray) -> Option<&Box<dyn Object>> {
-        let Some((obj, dist)) = self
-            .object_lookup
+        self.object_lookup
             .values()
             .map(|obj| {
                 let Some(pt_int) = obj.get_point_of_intersection(&ray) else {
@@ -130,15 +123,13 @@ impl Scene {
                 return (obj, pt_int.subtract(&ray.origin).magnitude());
             })
             .min_by(|(_, d1), (_, d2)| d1.partial_cmp(d2).unwrap())
-        else {
-            return None;
-        };
-
-        if dist == f64::INFINITY {
-            return None;
-        }
-
-        Some(obj)
+            .and_then(|(obj, dist)| {
+                if dist == f64::INFINITY {
+                    None
+                } else {
+                    Some(obj)
+                }
+            })
     }
 
     fn get_reflection(&self, ray: &Ray, obj: &Box<dyn Object>) -> Option<f64> {
@@ -186,16 +177,16 @@ impl Scene {
 
             let reflected_ray = Ray::new(pt_int, source.clone());
 
-            let is_blocked = match self.get_closest_object(&reflected_ray) {
-                Some(obj) => {
+            let is_blocked = self
+                .get_closest_object(&reflected_ray)
+                .map(|obj| {
                     obj.get_point_of_intersection(&reflected_ray)
                         .unwrap()
                         .subtract(&pt_int)
                         .magnitude()
                         < light_dir.magnitude()
-                }
-                None => false,
-            };
+                })
+                .unwrap_or(false);
 
             if is_blocked {
                 continue;
