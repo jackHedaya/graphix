@@ -61,11 +61,16 @@ impl Vector {
             z: self.z * scalar,
         }
     }
+
+    pub fn cos_between(&self, other: &Vector) -> f64 {
+        self.dot_product(&other) / (self.magnitude() * other.magnitude())
+    }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct Ray {
-    origin: Vector,
-    dir_pt: Vector,
+    pub origin: Vector,
+    pub dir_pt: Vector,
 }
 
 impl Ray {
@@ -78,13 +83,24 @@ impl Ray {
     }
 }
 
+pub trait Object {
+    fn get_point_of_intersection(&self, ray: &Ray) -> Option<Vector>;
+    fn get_normal_at_point(&self, v: &Vector) -> Vector;
+}
+
 pub struct Sphere {
   pub point: Vector,
   pub r: f64,
 }
 
 impl Sphere {
-    pub fn get_point_of_intersection(&self, ray: &Ray) -> Option<Vector> {
+    pub fn new(point: Vector, r: f64) -> Sphere {
+        Sphere { point, r }
+    }
+}
+
+impl Object for Sphere {
+    fn get_point_of_intersection(&self, ray: &Ray) -> Option<Vector> {
         // The ray from the camera to the center of the self
         let dir = ray.dir();
         let hyp_dir = self.point.subtract(&ray.origin);
@@ -109,5 +125,9 @@ impl Sphere {
         let dist_int = adj - f64::sqrt(rad_sq - opp_sq);
         // The point of intersection on the self
         Some(ray.origin.add(&norm_ray_dir.scalar_mult(dist_int)))
+    }
+
+    fn get_normal_at_point(&self, v: &Vector) -> Vector {
+        v.subtract(&self.point).normalize()
     }
 }
