@@ -58,10 +58,6 @@ fn capture(scene: &Scene, file_name: &str) {
             let norm_x = x as f64 - (screen[0].len() as f64 / 2.);
             let norm_y = (screen.len() as f64 / 2.) - y as f64;
 
-            // if norm_x != 0. || norm_y != -30. {
-            //     continue;
-            // }
-
             let point = Vector::new(norm_x, norm_y, 0.);
             let end_point = Vector::new(norm_x, norm_y, 1.0);
             let cam_ray = Ray::new(point.clone(), end_point.clone());
