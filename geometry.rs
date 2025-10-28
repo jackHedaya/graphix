@@ -89,16 +89,20 @@ pub trait Object {
 
     fn get_position(&self) -> Vector;
     fn set_position(&mut self, new: Vector);
+
+    fn id(&self) -> i64;
 }
 
 pub struct Sphere {
     pub point: Vector,
     pub r: f64,
+
+    pub id: i64,
 }
 
 impl Sphere {
-    pub fn new(point: Vector, r: f64) -> Sphere {
-        Sphere { point, r }
+    pub fn new(point: Vector, r: f64, id: i64) -> Sphere {
+        Sphere { point, r, id }
     }
 }
 
@@ -126,6 +130,7 @@ impl Object for Sphere {
         let adj = f64::sqrt(adj_sq);
 
         let dist_int = adj - f64::sqrt(rad_sq - opp_sq);
+
         // The point of intersection on the self
         Some(ray.origin.add(&norm_ray_dir.scalar_mult(dist_int)))
     }
@@ -140,5 +145,9 @@ impl Object for Sphere {
 
     fn set_position(&mut self, new: Vector) {
         self.point = new;
+    }
+
+    fn id(&self) -> i64 {
+        self.id
     }
 }

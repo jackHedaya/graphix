@@ -16,10 +16,11 @@ fn main() {
 
     let num_frames: f64 = 50.;
     for i in 0..(num_frames as isize) {
+
         for lid in 3..=4 {
             scene.get_light_source(lid).and_modify(|light| {
-                let x = f64::sin((i as f64 / num_frames) * 2. * std::f64::consts::PI);
-                let z = f64::cos((i as f64 / num_frames) * 2. * std::f64::consts::PI);
+                let x = f64::sin((i as f64 / num_frames) * 0.1-0.05 + std::f64::consts::PI);
+                let z = f64::cos((i as f64 / num_frames) * 0.1-0.05 + std::f64::consts::PI);
 
                 light.x = 25000. * x;
                 light.z = 25000. * z;
@@ -33,12 +34,18 @@ fn main() {
 fn get_scene() -> Scene {
     let mut scene = Scene::new();
 
-    scene.add_object(1, Box::new(Sphere::new(Vector::new(0., 0., 10000.), 125.)));
+    scene.add_object(
+        1,
+        Box::new(Sphere::new(Vector::new(0., 0., 10000.), 125., 1)),
+    );
 
-    scene.add_object(2, Box::new(Sphere::new(Vector::new(0., 100., 5000.), 100.)));
+    scene.add_object(
+        2,
+        Box::new(Sphere::new(Vector::new(0., 100., 5000.), 125., 2)),
+    );
 
-    scene.add_light_source(3, Vector::new(25000., 25000., 25000.));
-    scene.add_light_source(4, Vector::new(25000., -25000., 25000.));
+    // scene.add_light_source(3, Vector::new(25000., 25000., 25000.));
+    scene.add_light_source(4, Vector::new(0., 200., 0.));
 
     scene
 }
@@ -50,6 +57,10 @@ fn capture(scene: &Scene, file_name: &str) {
         for x in 0..screen[y].len() {
             let norm_x = x as f64 - (screen[0].len() as f64 / 2.);
             let norm_y = (screen.len() as f64 / 2.) - y as f64;
+
+            // if norm_x != 0. || norm_y != -30. {
+            //     continue;
+            // }
 
             let point = Vector::new(norm_x, norm_y, 0.);
             let end_point = Vector::new(norm_x, norm_y, 1.0);
@@ -107,15 +118,21 @@ impl Scene {
     }
 
     fn get_reflected_light(&self, ray: &Ray) -> f64 {
-        self.get_closest_object(ray)
+        self.get_closest_object(ray, -1)
             .and_then(|obj| self.get_reflection(&ray, &obj))
             .unwrap_or(0.)
     }
 
-    fn get_closest_object(&self, ray: &Ray) -> Option<&Box<dyn Object>> {
+    fn get_closest_object(&self, ray: &Ray, omit: i64) -> Option<&Box<dyn Object>> {
         self.object_lookup
-            .values()
+            .iter()
+            .filter_map(|(k, v)| if *k == omit { None } else { Some(v) })
             .map(|obj| {
+                let obj_to_ray = obj.get_position().subtract(&ray.origin);
+                if obj_to_ray.cos_between(&ray.dir()) < 0. {
+                    return (obj, f64::INFINITY);
+                }
+
                 let Some(pt_int) = obj.get_point_of_intersection(&ray) else {
                     return (obj, f64::INFINITY);
                 };
@@ -175,16 +192,21 @@ impl Scene {
                 continue;
             }
 
-            let reflected_ray = Ray::new(pt_int, source.clone());
+            let reflected_ray = Ray::new(
+                pt_int.add(&light_dir.normalize().scalar_mult(-1e-5)),
+                source.clone(),
+            );
 
             let is_blocked = self
-                .get_closest_object(&reflected_ray)
-                .map(|obj| {
-                    obj.get_point_of_intersection(&reflected_ray)
+                .get_closest_object(&reflected_ray, obj.id())
+                .map(|closest_obj| {
+                    let mag = closest_obj
+                        .get_point_of_intersection(&reflected_ray)
                         .unwrap()
                         .subtract(&pt_int)
-                        .magnitude()
-                        < light_dir.magnitude()
+                        .magnitude();
+                    println!("{}", mag);
+                    mag < light_dir.magnitude()
                 })
                 .unwrap_or(false);
 
