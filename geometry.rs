@@ -151,3 +151,59 @@ impl Object for Sphere {
         self.id
     }
 }
+
+pub struct Plane {
+    pub p0: Vector,
+    pub m: f64,
+    pub n: f64,
+    pub k: f64,
+    pub l: f64,
+}
+
+impl Plane {
+    pub fn new(p0: Vector, p1: Vector, p2: Vector) -> Plane {
+        Plane {
+            p0,
+            m: (p1.y - p0.y)/(p1.x - p0.x),
+            n: (p1.z - p0.z)/(p1.x - p0.x),
+            k: (p2.y - p0.y)/(p2.x - p0.x),
+            l: (p2.z - p0.z)/(p2.x - p0.x),
+        }
+    }
+}
+
+impl Object for Plane {
+    fn get_point_of_intersection(&self, ray: &Ray) -> Option<Vector> {
+        // TODO: First check if parallel
+        let raydir = ray.dir_pt.subtract(&ray.origin);
+        let h = raydir.y / raydir.x;
+        let i = raydir.z / raydir.x;
+        let [a, b, c] = [ray.origin.x, ray.origin.y, ray.origin.z];
+        // TODO check for degenerate divide by zero cases
+        let denominator = self.k - h - (self.l - i) * (self.k - self.m) / (self.l + self.n);
+        let numerator1part = self.p0.y + b - self.p0.x * self.m - a * h;
+        let numerator2part = (self.p0.z + c - self.p0.x * self.n - a * i) * (self.k + self.m) / (self.l + self.n);
+        let xval = (numerator1part - numerator2part) / denominator;
+        return Some(Vector {
+            x: xval,
+            y: (xval - a) * h + b,
+            z: (xval - a) * i + c,
+        })
+    }
+
+    fn get_normal_at_point(&self, v: &Vector) -> Vector {
+        unimplemented!();
+    }
+
+    fn get_position(&self) -> Vector {
+        unimplemented!();
+    }
+
+    fn set_position(&mut self, new: Vector) {
+        unimplemented!();
+    }
+
+    fn id(&self) -> i64 {
+        unimplemented!();
+    }
+}
