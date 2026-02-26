@@ -3,7 +3,7 @@ mod geometry;
 use core::f64;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
-use std::time::Duration;
+use std::time::{self, Duration};
 
 use sdl3::pixels::Color;
 use sdl3::render::WindowCanvas;
@@ -31,6 +31,9 @@ fn main() {
 
     let num_frames = 60;
     let mut counter = 0;
+
+    let mut last_frame_at = time::Instant::now();
+
     'running: loop {
         canvas.clear();
         canvas.set_draw_color(Color::RGB(255u8, 255u8, 255u8));
@@ -95,7 +98,17 @@ fn main() {
 
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.present();
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+
+        let current_time = time::Instant::now();
+        let frame_time = current_time - last_frame_at;
+
+        let min_frame_time = Duration::new(0, 1_000_000_000u32 / 60);
+
+        if frame_time < min_frame_time {
+            ::std::thread::sleep(min_frame_time - frame_time);
+        }
+
+        last_frame_at = time::Instant::now();
 
         counter += 1;
     }
