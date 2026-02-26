@@ -5,9 +5,9 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::time::Duration;
 
-use sdl3::event::Event;
 use sdl3::pixels::Color;
 use sdl3::render::WindowCanvas;
+use sdl3::{event::Event, keyboard::Keycode};
 
 use crate::geometry::{Object, Ray, Sphere, Vector};
 
@@ -35,6 +35,38 @@ fn main() {
 
         for event in event_pump.poll_iter() {
             match event {
+                Event::KeyDown {
+                    keycode: Some(Keycode::W),
+                    ..
+                }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Up),
+                    ..
+                } => scene.camera.pos.z += 1000.,
+                Event::KeyDown {
+                    keycode: Some(Keycode::S),
+                    ..
+                }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Down),
+                    ..
+                } => scene.camera.pos.z -= 1000.,
+                Event::KeyDown {
+                    keycode: Some(Keycode::A),
+                    ..
+                }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Left),
+                    ..
+                } => scene.camera.pos.x -= 10.,
+                Event::KeyDown {
+                    keycode: Some(Keycode::D),
+                    ..
+                }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Right),
+                    ..
+                } => scene.camera.pos.x += 10.,
                 Event::Quit { .. } => break 'running,
                 _ => {}
             }
@@ -57,7 +89,7 @@ fn main() {
             });
         }
 
-        capture(&scene, &mut canvas);
+        scene.capture(&mut canvas);
 
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.present();
@@ -86,29 +118,22 @@ fn get_scene() -> Scene {
     scene
 }
 
-fn capture(scene: &Scene, canvas: &mut WindowCanvas) {
-    let (width, height) = canvas.output_size().unwrap();
-
-    for y in 0..width {
-        for x in 0..height {
-            let norm_x = x as f64 - (width as f64 / 2.);
-            let norm_y = (height as f64 / 2.) - y as f64;
-
-            let point = Vector::new(norm_x, norm_y, 0.);
-            let end_point = Vector::new(norm_x, norm_y, 1.0);
-            let cam_ray = Ray::new(point.clone(), end_point.clone());
-
-            let capped_light = scene.get_reflected_light(&cam_ray) as u8;
-
-            canvas.set_draw_color(Color::RGB(capped_light, capped_light, capped_light));
-            canvas.draw_point((x as f32, y as f32)).unwrap();
-        }
-    }
-}
-
 pub struct Scene {
     object_lookup: HashMap<i64, Box<dyn Object>>,
     light_lookup: HashMap<i64, Vector>,
+    camera: Camera,
+}
+
+pub struct Camera {
+    pub pos: Vector,
+}
+
+impl Camera {
+    pub fn new() -> Camera {
+        Camera {
+            pos: Vector::zero(),
+        }
+    }
 }
 
 impl Scene {
@@ -116,6 +141,7 @@ impl Scene {
         Scene {
             object_lookup: HashMap::new(),
             light_lookup: HashMap::new(),
+            camera: Camera::new(),
         }
     }
 
@@ -235,5 +261,28 @@ impl Scene {
         }
 
         Some(total_light)
+    }
+
+    fn capture(&self, canvas: &mut WindowCanvas) {
+        let (width, height) = canvas.output_size().unwrap();
+
+        for y in 0..width {
+            for x in 0..height {
+                let norm_x = x as f64 - (width as f64 / 2.);
+                let norm_y = (height as f64 / 2.) - y as f64;
+
+                let offset_x: f64 = norm_x + self.camera.pos.x;
+                let offset_y: f64 = norm_y + self.camera.pos.y;
+
+                let point = Vector::new(offset_x, offset_y, self.camera.pos.z);
+                let end_point = Vector::new(offset_x, offset_y, self.camera.pos.z + 1.0);
+                let cam_ray = Ray::new(point.clone(), end_point.clone());
+
+                let capped_light = self.get_reflected_light(&cam_ray) as u8;
+
+                canvas.set_draw_color(Color::RGB(capped_light, capped_light, capped_light));
+                canvas.draw_point((x as f32, y as f32)).unwrap();
+            }
+        }
     }
 }
