@@ -1,33 +1,116 @@
 mod geometry;
 
 use core::f64;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::fs::{self, OpenOptions};
-use std::io::prelude::*;
+use std::collections::hash_map::Entry;
+use std::time::{self, Duration};
+
+use sdl3::pixels::Color;
+use sdl3::render::WindowCanvas;
+use sdl3::{event::Event, keyboard::Keycode};
 
 use crate::geometry::{Object, Ray, Sphere, Vector};
 
-const OUT_PATH: &str = "out";
+const MOVEMENT: f64 = 100.;
 
 fn main() {
-    fs::create_dir_all(OUT_PATH).expect("failed to initialize output directory");
+    let sdl_context = sdl3::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+
+    let window = video_subsystem
+        .window("cornea", 800, 600)
+        .position_centered()
+        .build()
+        .unwrap();
+
+    let mut canvas = window.into_canvas();
+
+    let mut event_pump = sdl_context.event_pump().unwrap();
+
     let mut scene = get_scene();
 
-    let num_frames: f64 = 50.;
-    for i in 0..(num_frames as isize) {
+    let num_frames = 60;
+    let mut counter = 0;
+
+    let mut last_frame_at = time::Instant::now();
+
+    'running: loop {
+        canvas.clear();
+        canvas.set_draw_color(Color::RGB(255u8, 255u8, 255u8));
+
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::KeyDown {
+                    keycode: Some(Keycode::W),
+                    ..
+                }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Up),
+                    ..
+                } => scene.camera.pos.z += MOVEMENT,
+                Event::KeyDown {
+                    keycode: Some(Keycode::S),
+                    ..
+                }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Down),
+                    ..
+                } => scene.camera.pos.z -= MOVEMENT,
+                Event::KeyDown {
+                    keycode: Some(Keycode::A),
+                    ..
+                }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Left),
+                    ..
+                } => scene.camera.pos.x -= MOVEMENT,
+                Event::KeyDown {
+                    keycode: Some(Keycode::D),
+                    ..
+                }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Right),
+                    ..
+                } => scene.camera.pos.x += MOVEMENT,
+                Event::Quit { .. } => break 'running,
+                _ => {}
+            }
+        }
+        //     // The rest of the game loop goes here...
 
         for lid in 3..=4 {
             scene.get_light_source(lid).and_modify(|light| {
-                let x = f64::sin((i as f64 / num_frames) * 0.1-0.05 + std::f64::consts::PI);
-                let z = f64::cos((i as f64 / num_frames) * 0.1-0.05 + std::f64::consts::PI);
+                let x = f64::sin(
+                    ((counter % num_frames) as f64 / num_frames as f64) * 0.1 - 0.05
+                        + std::f64::consts::PI,
+                );
+                let z = f64::cos(
+                    ((counter % num_frames) as f64 / num_frames as f64) * 0.1 - 0.05
+                        + std::f64::consts::PI,
+                );
 
                 light.x = 25000. * x;
                 light.z = 25000. * z;
             });
         }
 
-        capture(&scene, &format!("{}/{}.ppm", OUT_PATH, i));
+        scene.capture(&mut canvas);
+
+        canvas.set_draw_color(Color::RGB(0, 0, 0));
+        canvas.present();
+
+        let current_time = time::Instant::now();
+        let frame_time = current_time - last_frame_at;
+
+        let min_frame_time = Duration::new(0, 1_000_000_000u32 / 60);
+
+        if frame_time < min_frame_time {
+            ::std::thread::sleep(min_frame_time - frame_time);
+        }
+
+        last_frame_at = time::Instant::now();
+
+        counter += 1;
     }
 }
 
@@ -50,43 +133,26 @@ fn get_scene() -> Scene {
     scene
 }
 
-fn capture(scene: &Scene, file_name: &str) {
-    let mut screen = [[[255u8; 3]; 640]; 480];
-
-    for y in 0..screen.len() {
-        for x in 0..screen[y].len() {
-            let norm_x = x as f64 - (screen[0].len() as f64 / 2.);
-            let norm_y = (screen.len() as f64 / 2.) - y as f64;
-
-            let point = Vector::new(norm_x, norm_y, 0.);
-            let end_point = Vector::new(norm_x, norm_y, 1.0);
-            let cam_ray = Ray::new(point.clone(), end_point.clone());
-
-            let capped_light = scene.get_reflected_light(&cam_ray) as u8;
-
-            screen[y][x] = [capped_light, capped_light, capped_light];
-        }
-    }
-
-    let mut file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(file_name)
-        .expect("");
-
-    file.write_all(b"P6 640 480 255\n").expect("");
-
-    for y in 0..screen.len() {
-        for x in 0..screen[y].len() {
-            file.write_all(&screen[y][x]).expect("");
-        }
-    }
-}
-
 pub struct Scene {
     object_lookup: HashMap<i64, Box<dyn Object>>,
     light_lookup: HashMap<i64, Vector>,
+    camera: Camera,
+}
+
+pub struct Camera {
+    pub pos: Vector,
+
+    // delta z
+    pub fov: f64,
+}
+
+impl Camera {
+    pub fn new() -> Camera {
+        Camera {
+            pos: Vector::zero(),
+            fov: 500.,
+        }
+    }
 }
 
 impl Scene {
@@ -94,6 +160,7 @@ impl Scene {
         Scene {
             object_lookup: HashMap::new(),
             light_lookup: HashMap::new(),
+            camera: Camera::new(),
         }
     }
 
@@ -201,7 +268,6 @@ impl Scene {
                         .unwrap()
                         .subtract(&pt_int)
                         .magnitude();
-                    println!("{}", mag);
                     mag < light_dir.magnitude()
                 })
                 .unwrap_or(false);
@@ -214,5 +280,28 @@ impl Scene {
         }
 
         Some(total_light)
+    }
+
+    fn capture(&self, canvas: &mut WindowCanvas) {
+        let (width, height) = canvas.output_size().unwrap();
+
+        for y in 0..width {
+            for x in 0..height {
+                let norm_x = x as f64 - (width as f64 / 2.);
+                let norm_y = (height as f64 / 2.) - y as f64;
+
+                let offset_x: f64 = norm_x + self.camera.pos.x;
+                let offset_y: f64 = norm_y + self.camera.pos.y;
+
+                let end_point =
+                    Vector::new(offset_x, offset_y, self.camera.pos.z + self.camera.fov);
+                let cam_ray = Ray::new(self.camera.pos.clone(), end_point.clone());
+
+                let capped_light = self.get_reflected_light(&cam_ray) as u8;
+
+                canvas.set_draw_color(Color::RGB(capped_light, capped_light, capped_light));
+                canvas.draw_point((x as f32, y as f32)).unwrap();
+            }
+        }
     }
 }

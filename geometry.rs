@@ -10,6 +10,14 @@ impl Vector {
         Vector { x, y, z }
     }
 
+    pub fn zero() -> Vector {
+        Vector {
+            x: 0.,
+            y: 0.,
+            z: 0.,
+        }
+    }
+
     pub fn subtract(&self, other: &Vector) -> Vector {
         Vector {
             x: self.x - other.x,
