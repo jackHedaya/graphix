@@ -1,33 +1,69 @@
 mod geometry;
 
 use core::f64;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::fs::{self, OpenOptions};
-use std::io::prelude::*;
+use std::collections::hash_map::Entry;
+use std::time::Duration;
+
+use sdl3::event::Event;
+use sdl3::pixels::Color;
+use sdl3::render::WindowCanvas;
 
 use crate::geometry::{Object, Ray, Sphere, Vector};
 
-const OUT_PATH: &str = "out";
-
 fn main() {
-    fs::create_dir_all(OUT_PATH).expect("failed to initialize output directory");
+    let sdl_context = sdl3::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+
+    let window = video_subsystem
+        .window("cornea", 800, 600)
+        .position_centered()
+        .build()
+        .unwrap();
+
+    let mut canvas = window.into_canvas();
+
+    let mut event_pump = sdl_context.event_pump().unwrap();
+
     let mut scene = get_scene();
 
-    let num_frames: f64 = 50.;
-    for i in 0..(num_frames as isize) {
+    let num_frames = 60;
+    let mut counter = 0;
+    'running: loop {
+        canvas.clear();
+        canvas.set_draw_color(Color::RGB(255u8, 255u8, 255u8));
+
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. } => break 'running,
+                _ => {}
+            }
+        }
+        //     // The rest of the game loop goes here...
 
         for lid in 3..=4 {
             scene.get_light_source(lid).and_modify(|light| {
-                let x = f64::sin((i as f64 / num_frames) * 0.1-0.05 + std::f64::consts::PI);
-                let z = f64::cos((i as f64 / num_frames) * 0.1-0.05 + std::f64::consts::PI);
+                let x = f64::sin(
+                    ((counter % num_frames) as f64 / num_frames as f64) * 0.1 - 0.05
+                        + std::f64::consts::PI,
+                );
+                let z = f64::cos(
+                    ((counter % num_frames) as f64 / num_frames as f64) * 0.1 - 0.05
+                        + std::f64::consts::PI,
+                );
 
                 light.x = 25000. * x;
                 light.z = 25000. * z;
             });
         }
 
-        capture(&scene, &format!("{}/{}.ppm", OUT_PATH, i));
+        capture(&scene, &mut canvas);
+
+        canvas.set_draw_color(Color::RGB(0, 0, 0));
+        canvas.present();
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+
+        counter += 1;
     }
 }
 
@@ -50,13 +86,13 @@ fn get_scene() -> Scene {
     scene
 }
 
-fn capture(scene: &Scene, file_name: &str) {
-    let mut screen = [[[255u8; 3]; 640]; 480];
+fn capture(scene: &Scene, canvas: &mut WindowCanvas) {
+    let (width, height) = canvas.output_size().unwrap();
 
-    for y in 0..screen.len() {
-        for x in 0..screen[y].len() {
-            let norm_x = x as f64 - (screen[0].len() as f64 / 2.);
-            let norm_y = (screen.len() as f64 / 2.) - y as f64;
+    for y in 0..width {
+        for x in 0..height {
+            let norm_x = x as f64 - (width as f64 / 2.);
+            let norm_y = (height as f64 / 2.) - y as f64;
 
             let point = Vector::new(norm_x, norm_y, 0.);
             let end_point = Vector::new(norm_x, norm_y, 1.0);
@@ -64,22 +100,8 @@ fn capture(scene: &Scene, file_name: &str) {
 
             let capped_light = scene.get_reflected_light(&cam_ray) as u8;
 
-            screen[y][x] = [capped_light, capped_light, capped_light];
-        }
-    }
-
-    let mut file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(file_name)
-        .expect("");
-
-    file.write_all(b"P6 640 480 255\n").expect("");
-
-    for y in 0..screen.len() {
-        for x in 0..screen[y].len() {
-            file.write_all(&screen[y][x]).expect("");
+            canvas.set_draw_color(Color::RGB(capped_light, capped_light, capped_light));
+            canvas.draw_point((x as f32, y as f32)).unwrap();
         }
     }
 }
@@ -201,7 +223,6 @@ impl Scene {
                         .unwrap()
                         .subtract(&pt_int)
                         .magnitude();
-                    println!("{}", mag);
                     mag < light_dir.magnitude()
                 })
                 .unwrap_or(false);
