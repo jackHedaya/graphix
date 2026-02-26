@@ -11,6 +11,8 @@ use sdl3::{event::Event, keyboard::Keycode};
 
 use crate::geometry::{Object, Ray, Sphere, Vector};
 
+const MOVEMENT: f64 = 100.;
+
 fn main() {
     let sdl_context = sdl3::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
@@ -42,7 +44,7 @@ fn main() {
                 | Event::KeyDown {
                     keycode: Some(Keycode::Up),
                     ..
-                } => scene.camera.pos.z += 1000.,
+                } => scene.camera.pos.z += MOVEMENT,
                 Event::KeyDown {
                     keycode: Some(Keycode::S),
                     ..
@@ -50,7 +52,7 @@ fn main() {
                 | Event::KeyDown {
                     keycode: Some(Keycode::Down),
                     ..
-                } => scene.camera.pos.z -= 1000.,
+                } => scene.camera.pos.z -= MOVEMENT,
                 Event::KeyDown {
                     keycode: Some(Keycode::A),
                     ..
@@ -58,7 +60,7 @@ fn main() {
                 | Event::KeyDown {
                     keycode: Some(Keycode::Left),
                     ..
-                } => scene.camera.pos.x -= 10.,
+                } => scene.camera.pos.x -= MOVEMENT,
                 Event::KeyDown {
                     keycode: Some(Keycode::D),
                     ..
@@ -66,7 +68,7 @@ fn main() {
                 | Event::KeyDown {
                     keycode: Some(Keycode::Right),
                     ..
-                } => scene.camera.pos.x += 10.,
+                } => scene.camera.pos.x += MOVEMENT,
                 Event::Quit { .. } => break 'running,
                 _ => {}
             }
@@ -126,12 +128,16 @@ pub struct Scene {
 
 pub struct Camera {
     pub pos: Vector,
+
+    // delta z
+    pub fov: f64,
 }
 
 impl Camera {
     pub fn new() -> Camera {
         Camera {
             pos: Vector::zero(),
+            fov: 500.,
         }
     }
 }
@@ -274,9 +280,9 @@ impl Scene {
                 let offset_x: f64 = norm_x + self.camera.pos.x;
                 let offset_y: f64 = norm_y + self.camera.pos.y;
 
-                let point = Vector::new(offset_x, offset_y, self.camera.pos.z);
-                let end_point = Vector::new(offset_x, offset_y, self.camera.pos.z + 1.0);
-                let cam_ray = Ray::new(point.clone(), end_point.clone());
+                let end_point =
+                    Vector::new(offset_x, offset_y, self.camera.pos.z + self.camera.fov);
+                let cam_ray = Ray::new(self.camera.pos.clone(), end_point.clone());
 
                 let capped_light = self.get_reflected_light(&cam_ray) as u8;
 
