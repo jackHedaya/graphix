@@ -30,6 +30,14 @@ impl Vector {
         (self.x * other.x) + (self.y * other.y) + (self.z * other.z)
     }
 
+    pub fn cross_product(&self, other: &Vector) -> Vector {
+        Vector {
+            x: self.y * other.z - self.z * other.y,
+            y: -(self.x * other.z - self.z * other.x),
+            z: self.x * other.y - self.y * other.x,
+        }
+    }
+
     pub fn magnitude(&self) -> f64 {
         let sq_sum = self.dot_product(self);
 
@@ -88,6 +96,13 @@ impl Ray {
 
     pub fn dir(&self) -> Vector {
         self.dir_pt.subtract(&self.origin)
+    }
+
+    pub fn normalize(&self) -> Ray {
+        Ray {
+            origin: self.origin,
+            dir_pt: self.origin.add(&self.dir().normalize()),
+        }
     }
 }
 
@@ -160,58 +175,92 @@ impl Object for Sphere {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct Plane {
     pub p0: Vector,
+    pub p1: Vector,
+    pub p2: Vector,
     pub m: f64,
     pub n: f64,
     pub k: f64,
     pub l: f64,
+    pub id: i64,
 }
 
 impl Plane {
-    pub fn new(p0: Vector, p1: Vector, p2: Vector) -> Plane {
+    pub fn new(p0: Vector, p1: Vector, p2: Vector, id: i64) -> Plane {
+        let [p0n, p1n, p2n] = [p0.normalize(), p1.normalize(), p2.normalize()];
+        // TODO: check that the points are not in a line
         Plane {
-            p0,
-            m: (p1.y - p0.y)/(p1.x - p0.x),
-            n: (p1.z - p0.z)/(p1.x - p0.x),
-            k: (p2.y - p0.y)/(p2.x - p0.x),
-            l: (p2.z - p0.z)/(p2.x - p0.x),
+            p0: p0,
+            p1: p1,
+            p2: p2,
+            m: (p1n.y - p0n.y) / (p1n.x - p0n.x),
+            n: (p1n.z - p0n.z) / (p1n.x - p0n.x),
+            k: (p2n.y - p0n.y) / (p2n.x - p0n.x),
+            l: (p2n.z - p0n.z) / (p2n.x - p0n.x),
+            id,
         }
     }
 }
 
+const COMPARISON_EPSILON: f64 = 1e-8;
+
 impl Object for Plane {
     fn get_point_of_intersection(&self, ray: &Ray) -> Option<Vector> {
-        // TODO: First check if parallel
-        let raydir = ray.dir_pt.subtract(&ray.origin);
+        // First check if the line is parallel.
+        let raynorm = ray.normalize();
+        let arbitrary_plane_line = self.p0.subtract(&self.p1).normalize();
+        if arbitrary_plane_line
+            .cross_product(&raynorm.dir())
+            .magnitude()
+            < COMPARISON_EPSILON
+        {
+            return None;
+        }
+
+        // Check if axis aligned--use y instead
+
+        let raydir = raynorm.dir();
         let h = raydir.y / raydir.x;
         let i = raydir.z / raydir.x;
         let [a, b, c] = [ray.origin.x, ray.origin.y, ray.origin.z];
-        // TODO check for degenerate divide by zero cases
-        let denominator = self.k - h - (self.l - i) * (self.k - self.m) / (self.l + self.n);
+
+        // Now check for degenerate divide by zero cases.
+
+        let denominator = self.k - h - (self.l - i) * (self.k + self.m) / (self.l + self.n);
         let numerator1part = self.p0.y + b - self.p0.x * self.m - a * h;
-        let numerator2part = (self.p0.z + c - self.p0.x * self.n - a * i) * (self.k + self.m) / (self.l + self.n);
+        let numerator2part =
+            (self.p0.z + c - self.p0.x * self.n - a * i) * (self.k + self.m) / (self.l + self.n);
         let xval = (numerator1part - numerator2part) / denominator;
         return Some(Vector {
             x: xval,
             y: (xval - a) * h + b,
             z: (xval - a) * i + c,
-        })
+        });
     }
 
     fn get_normal_at_point(&self, v: &Vector) -> Vector {
-        unimplemented!();
+        // This doesn't necessarily point in the correct direction
+        self.p1
+            .subtract(&self.p0)
+            .cross_product(&self.p2.subtract(&self.p0))
+            .normalize()
     }
 
     fn get_position(&self) -> Vector {
-        unimplemented!();
+        self.p0
     }
 
     fn set_position(&mut self, new: Vector) {
-        unimplemented!();
+        // This API doesn't handle rotations!
+        let delta = new.subtract(&self.p0);
+        self.p0 = new;
+        self.p1 = self.p1.add(&delta);
+        self.p2 = self.p2.add(&delta);
     }
 
     fn id(&self) -> i64 {
-        unimplemented!();
+        self.id
     }
 }

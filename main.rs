@@ -9,7 +9,7 @@ use sdl3::pixels::Color;
 use sdl3::render::WindowCanvas;
 use sdl3::{event::Event, keyboard::Keycode};
 
-use crate::geometry::{Object, Ray, Sphere, Vector};
+use crate::geometry::{Object, Plane, Ray, Sphere, Vector};
 
 const MOVEMENT: f64 = 100.;
 
@@ -125,6 +125,16 @@ fn get_scene() -> Scene {
     scene.add_object(
         2,
         Box::new(Sphere::new(Vector::new(0., 100., 5000.), 125., 2)),
+    );
+
+    scene.add_object(
+        3,
+        Box::new(Plane::new(
+            Vector::new(0., 0., 20000.),
+            Vector::new(1., 1., 20000.),
+            Vector::new(1., 0., 20000.),
+            3,
+        )),
     );
 
     // scene.add_light_source(3, Vector::new(25000., 25000., 25000.));
