@@ -197,29 +197,31 @@ impl Scene {
     }
 
     fn get_closest_object(&self, ray: &Ray, omit: i64) -> Option<&Box<dyn Object>> {
-        self.object_lookup
+        let mut closest_object = None;
+
+        for obj in self
+            .object_lookup
             .iter()
             .filter_map(|(k, v)| if *k == omit { None } else { Some(v) })
-            .map(|obj| {
-                let obj_to_ray = obj.get_position().subtract(&ray.origin);
-                if obj_to_ray.cos_between(&ray.dir()) < 0. {
-                    return (obj, f64::INFINITY);
-                }
+        {
+            let obj_to_ray = obj.get_position().subtract(&ray.origin);
+            if obj_to_ray.cos_between(&ray.dir()) < 0. {
+                continue;
+            }
 
-                let Some(pt_int) = obj.get_point_of_intersection(&ray) else {
-                    return (obj, f64::INFINITY);
-                };
+            let Some(pt_int) = obj.get_point_of_intersection(&ray) else {
+                continue;
+            };
 
-                return (obj, pt_int.subtract(&ray.origin).magnitude());
-            })
-            .min_by(|(_, d1), (_, d2)| d1.partial_cmp(d2).unwrap())
-            .and_then(|(obj, dist)| {
-                if dist == f64::INFINITY {
-                    None
-                } else {
-                    Some(obj)
+            let current_distance = pt_int.subtract(&ray.origin).magnitude();
+            if let Some((_, closest_distance)) = closest_object {
+                if current_distance > closest_distance {
+                    continue;
                 }
-            })
+            }
+            closest_object = Some((obj, current_distance));
+        }
+        Some(closest_object?.0)
     }
 
     fn get_reflection(&self, ray: &Ray, obj: &Box<dyn Object>) -> Option<f64> {
