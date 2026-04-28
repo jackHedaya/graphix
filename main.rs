@@ -131,7 +131,7 @@ fn get_scene() -> Scene {
         3,
         Box::new(Plane::new(
             Vector::new(0., 0., 20000.),
-            Vector::new(1., 1., 20000.),
+            Vector::new(0., 1., 20000.),
             Vector::new(1., 0., 20000.),
             3,
         )),

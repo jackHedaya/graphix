@@ -81,6 +81,22 @@ impl Vector {
     pub fn cos_between(&self, other: &Vector) -> f64 {
         self.dot_product(&other) / (self.magnitude() * other.magnitude())
     }
+
+    pub fn swizzle(&self) -> Vector {
+        Vector {
+            x: self.y,
+            y: self.z,
+            z: self.x,
+        }
+    }
+
+    pub fn unswizzle(&self) -> Vector {
+        Vector {
+            x: self.z,
+            y: self.x,
+            z: self.y,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -189,7 +205,14 @@ pub struct Plane {
 
 impl Plane {
     pub fn new(p0: Vector, p1: Vector, p2: Vector, id: i64) -> Plane {
-        let [p0n, p1n, p2n] = [p0.normalize(), p1.normalize(), p2.normalize()];
+        let [mut p0n, mut p1n, mut p2n] = [p0.normalize(), p1.normalize(), p2.normalize()];
+        if p0n.x == p1n.x {
+            assert_ne!(p1n.x, p2n.x);
+            [p0n, p2n] = [p2n, p0n]
+        } else if p0n.x == p2n.x {
+            assert_ne!(p1n.x, p2n.x);
+            [p0n, p1n] = [p1n, p0n]
+        }
         // TODO: check that the points are not in a line
         Plane {
             p0: p0,
@@ -219,9 +242,24 @@ impl Object for Plane {
             return None;
         }
 
-        // Check if axis aligned--use y instead
-
+        // We chose x as our division axis, we swap axes if our ray is x axis aligned.
         let raydir = raynorm.dir();
+        if raydir.x == 0. {
+            let swizzled_ray = Ray {
+                origin: ray.origin.swizzle(),
+                dir_pt: ray.dir_pt.swizzle(),
+            };
+            let swizzled_plane =
+                Plane::new(self.p0.swizzle(), self.p1.swizzle(), self.p2.swizzle(), -1);
+            if let Some(swizzled_intersection_pt) =
+                swizzled_plane.get_point_of_intersection(&swizzled_ray)
+            {
+                return Some(swizzled_intersection_pt.unswizzle());
+            } else {
+                return None;
+            }
+        }
+
         let h = raydir.y / raydir.x;
         let i = raydir.z / raydir.x;
         let [a, b, c] = [ray.origin.x, ray.origin.y, ray.origin.z];
