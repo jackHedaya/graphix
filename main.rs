@@ -1,8 +1,8 @@
 mod geometry;
 
 use core::f64;
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::time::{self, Duration};
 
 use sdl3::pixels::Color;
@@ -297,8 +297,8 @@ impl Scene {
     fn capture(&self, canvas: &mut WindowCanvas) {
         let (width, height) = canvas.output_size().unwrap();
 
-        for y in 0..width {
-            for x in 0..height {
+        for y in 0..height {
+            for x in 0..width {
                 let norm_x = x as f64 - (width as f64 / 2.);
                 let norm_y = (height as f64 / 2.) - y as f64;
 
